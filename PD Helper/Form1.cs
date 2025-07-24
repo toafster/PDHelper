@@ -28,9 +28,6 @@ using SharpDX.XInput;
 * ERROR08: The arsenal name contains banned characters (\ / : * ? "" < > |)
 * ERROR09: A Skill from your loaded arsenal does not exist in the game and could not be loaded. The arsenal has been tampered with or was corrupted. Please try loading another arsenal.
 * ERROR10: The arsenal does not contain a valid amount of cards. The arsenal has been tampered with or is corrupted. Please try loading another arsenal.
-* 
-* 
-* 
 */
 
 namespace PD_Helper
@@ -38,6 +35,9 @@ namespace PD_Helper
     //timer value 7FF7D096C8C0
     public partial class Form1 : Form
     {
+        // 2. Import the RegisterHotKey Method
+        [DllImport("user32.dll")]
+        public static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vlc);
         private Controller _controller;
 
         // Load card definitions
@@ -54,6 +54,12 @@ namespace PD_Helper
         public Form1()
         {
             InitializeComponent();
+            int UniqueHotkeyId = 1;
+            int HotKeyCode = (int)Keys.Oemtilde;
+            // Register "Control" hotkey
+            Boolean ControlKey = RegisterHotKey(
+                this.Handle, UniqueHotkeyId, 0x0000, HotKeyCode
+            );
             this.KeyPreview = true;
 
             // Set default checkmarks
@@ -71,18 +77,19 @@ namespace PD_Helper
             }
 
             // Set default sort
-            sortComboBox1.Text = "ID";
-            sortComboBox2.Text = "None";
+            sortComboBox1.Text = "School";
+            sortComboBox2.Text = "Type";
             sortComboBox3.Text = "None";
 
             // Load a blank 30 aura arsenal
             List<PDCard> emptyArsenal = new List<PDCard>();
-			for (int i = 0; i < 30; i++)
-			{
+            for (int i = 0; i < 30; i++)
+            {
                 emptyArsenal.Add(getCard("Aura Particle"));
-			}
+            }
             openArsenalToList(emptyArsenal);
             refreshView();
+            updateEditorList(this, EventArgs.Empty);
         }
 
         private void loadArsenalList()
@@ -151,13 +158,15 @@ namespace PD_Helper
                     if (arsenalDropdown.Items.Count > 0)
                     {
                         arsenalDropdown.SelectedIndex = 0;
-                    } else
+                    }
+                    else
                     {
                         MessageBox.Show("ERROR07: The Profile has no Arsenals, please create at least one in-game Arsenal to be able to load/write/edit them.");
                     }
 
                     break;
-                } else if (i == processCollection.Length - 1)
+                }
+                else if (i == processCollection.Length - 1)
                 {
                     label2.ForeColor = Color.Red;
                     label2.Text = "No Game Found. Start Phantom Dust First!";
@@ -188,13 +197,13 @@ namespace PD_Helper
 
         private void btnSaveToPDH_Click(object sender, EventArgs e)
         {
-			// Only save if the name is given
-			if (loadedDeckName == "")
-			{
+            // Only save if the name is given
+            if (loadedDeckName == "")
+            {
                 MessageBox.Show("Please enter a name for the arsenal to save.");
                 return;
-			}
-            
+            }
+
             string path = @"Arsenals\" + loadedDeckName + ".arsenal";
             string str = "";
             for (int i = 0; i < 31; i++)
@@ -207,7 +216,8 @@ namespace PD_Helper
                 sw.Close();
             }
             // only add new name to list if its a unique new deck, update the old one otherwise
-            if (!savedArsenalListBox.Items.Contains(loadedDeckName) == true) {
+            if (!savedArsenalListBox.Items.Contains(loadedDeckName) == true)
+            {
                 savedArsenalListBox.Items.Add(loadedDeckName);
             }
 
@@ -290,7 +300,8 @@ namespace PD_Helper
             if (!regex.IsMatch(textToWrite))
             {
                 loadedDeckName = arsenalNameBox.Text;
-            } else
+            }
+            else
             {
                 arsenalNameBox.Text = arsenalNameBox.Text.Remove(arsenalNameBox.Text.Length - 1, 1);
                 arsenalNameBox.SelectionStart = arsenalNameBox.TextLength;
@@ -328,11 +339,12 @@ namespace PD_Helper
              * Number of Uses
              * Range
              * ID
+             * Type
              * None
 			 */
 
             switch (sort)
-			{
+            {
                 case "School":
                     return PDCard.SortSchool();
                 case "Cost":
@@ -345,10 +357,12 @@ namespace PD_Helper
                     return PDCard.SortRange();
                 case "ID":
                     return PDCard.SortID();
+                case "Type":
+                    return PDCard.SortType();
                 default:
-					return null;
-			}
-		}
+                    return null;
+            }
+        }
 
         private void updateEditorList(bool[] schoolFilter, bool[] rangeFilter, bool[] miscNumberFilter)
         {
@@ -493,9 +507,10 @@ namespace PD_Helper
             List<IComparer<PDCard>> comparers = new List<IComparer<PDCard>>();
             IComparer<PDCard> comparer1 = determineSort(sortComboBox1.Text);
             if (comparer1 != null) comparers.Add(comparer1);
-            else comparers.Add(PDCard.SortID()); // Default sort
+            else comparers.Add(PDCard.SortSchool()); // Default sort
             IComparer<PDCard> comparer2 = determineSort(sortComboBox2.Text);
             if (comparer2 != null) comparers.Add(comparer2);
+            else comparers.Add(PDCard.SortType());
             IComparer<PDCard> comparer3 = determineSort(sortComboBox3.Text);
             if (comparer3 != null) comparers.Add(comparer3);
 
@@ -503,7 +518,7 @@ namespace PD_Helper
             displayCards.Sort(PDCard.SortMulti(comparers.ToArray()));
             editorList.Items.Clear();
             foreach (var item in displayCards)
-			{
+            {
                 editorList.Items.Add(item.NAME);
             }
         }
@@ -525,12 +540,13 @@ namespace PD_Helper
                     if (deckStrings.Length < 30)
                     {
                         MessageBox.Show(@"ERROR10: The arsenal does not contain a valid amount of cards. The arsenal has been tampered with or is corrupted. Please try loading another arsenal.");
-                    } else
+                    }
+                    else
                     {
                         //manual write schools
 
                         string loadSchoolAmount = deckStrings[30].Remove(deckStrings[30].Length - 3);
-                        if (loadSchoolAmount == "01" || loadSchoolAmount == "02" || loadSchoolAmount == "03")
+                        if (loadSchoolAmount == "01" || loadSchoolAmount == "02" || loadSchoolAmount == "03" || loadSchoolAmount == "04" || loadSchoolAmount == "05")
                         {
                             schoolNumeric.Value = Int32.Parse(loadSchoolAmount);
                             loadedDeck[30] = deckStrings[30];
@@ -660,7 +676,7 @@ namespace PD_Helper
 
                 }
             }
-            int maxAllowedSchools = Convert.ToInt32(loadedDeck[30].Remove(2));
+            int maxAllowedSchools = 5;
             if (psy > 0) { schoolAmount++; }
             if (opt > 0) { schoolAmount++; }
             if (nat > 0) { schoolAmount++; }
@@ -685,7 +701,7 @@ namespace PD_Helper
             {
                 if (item.Value > 3 && item.Key != "Aura Particle")
                 {
-                    isOverDupeLimit = true;
+                    isOverDupeLimit = false;
                 }
             }
 
@@ -697,7 +713,7 @@ namespace PD_Helper
             }
             else if (isOverDupeLimit)
             {
-                MessageBox.Show("ERROR06: You cannot have more than 3 of the same skill in an Arsenal");
+                MessageBox.Show("ERROR10: You cannot have more than 3 of the same skill in an Arsenal");
                 return false;
             }
             else return true;
@@ -705,8 +721,8 @@ namespace PD_Helper
 
         private void saveToPDbtn_Click(object sender, EventArgs e)
         {
-			try
-			{
+            try
+            {
                 if (validateArsenal())
                 {
                     //writing the name
@@ -733,10 +749,10 @@ namespace PD_Helper
                     arsenalDropdown.Items[arsenalDropdown.SelectedIndex] = arsenalNameBox.Text.ToString();
                 }
             }
-			catch (Exception)
-			{
+            catch (Exception)
+            {
                 MessageBox.Show("Unable to save to Phantom Dust. Make sure the game is open and the app is connected by pressing 'Load Profile'.");
-			}
+            }
         }
 
         private void schoolNumeric_ValueChanged(object sender, EventArgs e)
@@ -785,7 +801,7 @@ namespace PD_Helper
             string[] offsetsLoadCards = { "18", "7C", "E0", "144", "1A8", "20C", "270", "2D4", "338", "39C", "400", "464", "4C8", "52C", "590", "5F4" };
             // Load all cards
             Byte[] loadDeck = m.ReadBytes("base+003ED6B8," + offsetsLoadCards[arsenalDropdown.SelectedIndex], 62);
-            
+
             //add cards to list
             loadedDeck = new string[] { "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "FF FF", "00 00" };
             List<PDCard> cardList = new List<PDCard>();
@@ -833,11 +849,11 @@ namespace PD_Helper
 
             bool selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
             if (selected)
-			{
+            {
                 backColor = lightColorFromName(skillName);
             }
-			else
-			{
+            else
+            {
                 backColor = darkColorFromName(skillName);
             }
 
@@ -852,7 +868,7 @@ namespace PD_Helper
             Image schoolIcon = Image.FromFile(path);
 
             // Draw the school icon [HEIGHT IS 15]
-            e.Graphics.DrawImageUnscaled(schoolIcon, 
+            e.Graphics.DrawImageUnscaled(schoolIcon,
                 x: e.Bounds.Right - 28,
                 y: e.Bounds.Top);
 
@@ -861,9 +877,9 @@ namespace PD_Helper
         }
 
         private void Form1_KeyDown(object sender, KeyEventArgs e)
-        { 
+        {
             // this should be the keypress T to toggle partner lock but its not working while not focused
-            //if (e.KeyData == Keys.T) { partnerLock.Invoke((MethodInvoker)(() => partnerLock.Checked = !partnerLock.Checked)); }
+            // if (e.KeyData == Keys.T) { partnerLock.Invoke((MethodInvoker)(() => partnerLock.Checked = !partnerLock.Checked)); }
         }
 
         private void refreshArsenalList(object sender, EventArgs e)
@@ -900,8 +916,8 @@ namespace PD_Helper
             }
         }
 
-		private void schoolFilterCheckedListBox_ItemCheck(object sender, ItemCheckEventArgs e)
-		{
+        private void schoolFilterCheckedListBox_ItemCheck(object sender, ItemCheckEventArgs e)
+        {
             // Use the current array of checkmarks but with the updated checkmark value instead
             bool[] schoolFilter = new bool[5];
             for (int i = 0; i < 5; i++)
@@ -960,8 +976,8 @@ namespace PD_Helper
                 rangeFilter[i] = rangeFilterCheckedListBox.GetItemChecked(i);
             }
             bool[] miscNumberFilter = new bool[4];
-			for (int i = 0; i < 4; i++)
-			{
+            for (int i = 0; i < 4; i++)
+            {
                 if (i != e.Index) miscNumberFilter[i] = rangeFilterCheckedListBox.GetItemChecked(i);
                 else miscNumberFilter[e.Index] = e.NewValue == CheckState.Checked;
             }
@@ -969,14 +985,14 @@ namespace PD_Helper
             updateEditorList(schoolFilter, rangeFilter, miscNumberFilter);
         }
 
-		private void colorProfileButton_Click(object sender, EventArgs e)
-		{
+        private void colorProfileButton_Click(object sender, EventArgs e)
+        {
             // Open new form for setting colors
             var colorForm = new ColorProfileForm();
             colorForm.Owner = this;
             colorForm.ShowDialog();
             refreshView();
-		}
+        }
 
         public void refreshView()
         {
@@ -998,13 +1014,13 @@ namespace PD_Helper
             specialRadioButton.ForeColor = lightColorFromType("Special");
         }
 
-		private void checkedListBox_SelectedIndexChanged(object sender, EventArgs e)
-		{
+        private void checkedListBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
             ((CheckedListBox)sender).ClearSelected();
-		}
+        }
 
-		private void newArsenalButton_Click(object sender, EventArgs e)
-		{
+        private void newArsenalButton_Click(object sender, EventArgs e)
+        {
             // Load a blank 30 aura arsenal
             List<PDCard> emptyArsenal = new List<PDCard>();
             for (int i = 0; i < 30; i++)
@@ -1012,6 +1028,22 @@ namespace PD_Helper
                 emptyArsenal.Add(getCard("Aura Particle"));
             }
             openArsenalToList(emptyArsenal);
+
+        }
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            // Catch when a HotKey is pressed
+            if (m.Msg == 0x0312)
+            {
+                int id = m.WParam.ToInt32();
+
+                if (id == 1)
+                {
+                    partnerLock.Invoke((MethodInvoker)(() => partnerLock.Checked = !partnerLock.Checked));
+                }
+            }
+
         }
 
         private void label16_Click(object sender, EventArgs e)
@@ -1025,6 +1057,16 @@ namespace PD_Helper
         }
 
         private void label29_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+
+        }
+
+        private void label6_Click(object sender, EventArgs e)
         {
 
         }
